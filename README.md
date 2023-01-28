@@ -2,16 +2,16 @@
 
 Examples
 
+1. ```
+message:error   "Error: %s", "An error has occured: %s"
+message:warning "Warning: %s", "%s. You have been warned."
 ```
-message:error   "An error has occured: %s"
-message:warning "Warning: %s"
-```
-```
+2. ```
 blocks:piston "Piston"
 blocks:redstone "Redstone"
 blocks:stone "Stone"
 ```
-```
+3. ```
 one "I"
 two "II"
 three "III"
@@ -23,9 +23,14 @@ eight "VIII"
 nine "IX"
 ten "X"
 ```
-```
+4. ```
 character:health 100
 character:autorespawn true
 character:autosave false
 character:name undefined
 ```
+
+TODO
+- finish encode function
+- add array support (example 1)
+- add string and number support (example 3, 4)
