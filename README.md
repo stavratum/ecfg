@@ -4,8 +4,8 @@ Examples
 
 1.
 ```
-message:error   "Error: %s", "An error has occured: %s"
-message:warning "Warning: %s", "%s. You have been warned."
+message:error   ["Error: %s", "An error has occured: %s"]
+message:warning ["Warning: %s", "%s. You have been warned."]
 ```
 2.
 ```
@@ -31,10 +31,8 @@ ten "X"
 character:health 100
 character:autorespawn true
 character:autosave false
-character:name undefined
+character:name ...
 ```
 
 TODO
-- finish encode function
-- add array support (example 1)
-- add string and number support (example 3, 4)
+- finish string support
