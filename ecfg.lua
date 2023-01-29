@@ -1,22 +1,6 @@
---
-
-local function split(input, sep)
-   local matches = {}
-        
-    if not sep then
-        return nil
-    end
-        
-    for match in input:gmatch("([^"..sep.."]+)") do
-        table.insert(matches, match)
-    end
-        
-    return matches
-end
-
 local function indexOf(array, value)
-    for i,v in ipairs(array) do
-        if v == value then
+    for i = 1, #array do
+        if value == array[i] then
             return i
         end
     end
@@ -26,42 +10,113 @@ end
 
 --
 
+local esc_cmi = {"\\", '\'', "\"", "\b", "\f", "\n", "\r", "\t"}
+local esc_cmv = {"\\", "'", "\"", "b", "f", "n", "r", "t"}
+
+local literalsi = {"...", "false", "true"}
+local literalsv = {nil, false, true}
+
 local ecfg = {}
-local converter = {}
-local types = { ecfg = {"undefined", "false", "true"}, lua = {nil, false, true} }
+local type_map; type_map = {
+    encode = {
+        ["boolean"] = tostring,
+        ["number"] = tostring,
+        ["nil"] = function() return "..." end,
+        ["string"] = function(v)
+            local content = v:gsub('[%z\1-\31\\"\']', function(character)
+                return "\\"..esc_cmv[indexOf(esc_cmi, character)]
+            end)
+            
+            return '"'..content..'"'
+        end,
+        ["table"] = function(array)
+            local res = ""
+            for i = 1, #array do
+                local v = array[i]
+                res = res..type_map.encode[ type(v) ](v)
+                if i ~= #array then
+                    res = res..", "
+                end
+            end
+            return "["..res.."]"
+        end
+    },
+    decode = {
+        ["number"] = tonumber,
+        ["literal"] = function(v)
+            return literalsv[ indexOf(literalsi, v) ]
+        end,
+        ["string"] = function(v, quote)
+            local content = v:match(quote.."(.*)"..quote)
+            
+            return content:gsub("\\\\(.)", function(character)
+                return esc_cmi[ indexOf(esc_cmv, character) ]
+            end)
+        end,
+        ["table"] = function(v)
+            local content = v:match("%[([^%]]*)%]")
+            local res = {}
 
-function converter.tolua(v)
-    local index = indexOf(types.ecfg, v)
-    local success = index ~= -1
+            for value in content:gmatch("([^,]*),? *") do
+                local type, complex = ecfg.typeof(v)
+                res[#res + 1] = type_map.decode[type](v, complex)
+            end
 
-    return success, success and types.lua[index] or nil
+            return res
+        end
+    }
+}
+
+function ecfg.typeof(v)
+    if indexOf(literalsi, v) ~= -1 then
+        return "literal"
+    elseif tonumber(v) then
+        return "number"
+    elseif v:match("%[.*%]") then
+        return "table"
+    else
+        return "string", "\""
+    end
 end
 
-function converter.toecfg(v)
-    local index = indexOf(types.lua, v)
-    local success = index ~= -1
-
-    return success, success and types.ecfg[index] or nil
+function ecfg.encode(data)
+    local res = ""
+    for kv,v in pairs(data) do
+        local encoded = type_map.encode[type(v)](v)
+        res = res..("%s %s\n"):format(kv, v)
+    end
+    return res:sub(1, #res-1)
 end
 
-function ecfg:encode()
-
-end
-
-function ecfg:decode(data)
-    local lines = split(data, "\n")
-    local result = { }
-     
-    for _,line in ipairs(lines) do
-        local i,v = table.unpack(split(line, " "))
-        local success, converted = converter.tolua(v)
+function ecfg.decode(data)
+    local function split(input, separator)
+        local matches = {}
+        for match in input:gmatch("([^"..separator.."]+)") do
+            matches[#matches + 1] = match
+        end
         
-        if success then result[i] = converted else
-            result[i] = v
+        return matches
+    end
+
+    local lines = split(data, "\n")
+    local res = {}
+        
+    for _,line in ipairs(lines) do
+        line = line:gsub(" *;;.*", "")
+        if #line > 2 then
+            local content = split(line, " ")
+            local kv, value = "", ""
+
+            for i,v in ipairs(content) do
+                if i ~= #content then kv = kv..v else value = v end
+            end
+
+            local type, complex = ecfg.typeof(value)
+            res[kv] = type_map.decode[type](value, complex)
         end
     end
-    
-    return result
+
+    return res
 end
 
-return ecfg, converter
+return ecfg, type_map
