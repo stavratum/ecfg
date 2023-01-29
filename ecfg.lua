@@ -99,7 +99,7 @@ function ecfg.encode(data)
     local res = ""
     for kv,v in pairs(data) do
         local encoded = type_map.encode[type(v)](v)
-        res = res..("%s %s\n"):format(kv, v)
+        res = res..("%s %s\n"):format(kv, encoded)
     end
     return res:sub(1, #res-1)
 end
