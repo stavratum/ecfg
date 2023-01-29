@@ -86,7 +86,7 @@ function ecfg.typeof(v)
         
         for i = 2, #v - 1 do
             local character = v:sub(i, i)
-            if indexOf(esc_cmv, character) ~= -1 and v:sub(i-1, i-1) ~= "\\" then
+            if indexOf({"\\", quote}, character) ~= -1 and v:sub(i-1, i-1) ~= "\\" then
                 return "unidentified"
             end
         end
