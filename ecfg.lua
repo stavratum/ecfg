@@ -46,6 +46,9 @@ local type_map; type_map = {
         ["literal"] = function(v)
             return literalsv[ indexOf(literalsi, v) ]
         end,
+        ["unidentified"] = function(v)
+            return nil
+        end,
         ["string"] = function(v, quote)
             local content = v:match(quote.."(.*)"..quote)
             
@@ -75,7 +78,20 @@ function ecfg.typeof(v)
     elseif v:match("%[.*%]") then
         return "table"
     else
-        return "string", "\""
+        local quote = v:sub(1, 1)
+        
+        if indexOf({'"', "'"}, quote) == -1 or quote ~= v:sub(-1) then
+            return "unidentified"
+        end
+        
+        for i = 2, #v - 1 do
+            local character = v:sub(i, i)
+            if indexOf(esc_cmv, character) ~= -1 and v:sub(i-1, i-1) ~= "\\" then
+                return "unidentified"
+            end
+        end
+
+        return "string", quote
     end
 end
 
@@ -102,8 +118,8 @@ function ecfg.decode(data)
     local res = {}
         
     for _,line in ipairs(lines) do
-        line = line:gsub(" *;;.*", "")
-        if #line > 2 then
+        line = line:gsub(" *;;[^;;]*$", ""):gsub("^[ \t]*", "")
+        if line ~= "" then
             local content = split(line, " ")
             local kv, value = "", ""
 
