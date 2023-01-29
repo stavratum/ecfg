@@ -1,0 +1,8 @@
+;; messages
+message:error ["An error has occured. %s", "Error: %s"]
+message:warning ["%s. You have been warned.", ...]
+
+;; paths
+assets:bunny "path/to/bunny/png" 
+assets:cat "path/to/cat/png"
+assets:dog "path/to/dog/png"
