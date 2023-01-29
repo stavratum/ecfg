@@ -118,7 +118,7 @@ function ecfg.decode(data)
     local res = {}
         
     for _,line in ipairs(lines) do
-        line = line:gsub(" *;;[^;;]*$", ""):gsub("^[ \t]*", "")
+        line = line:gsub([[[^"' ]*["' ]?( *;;.*)]], ""):gsub("^[ \t]*", "")
         if line ~= "" then
             local content = split(line, " ")
             local kv, value = "", ""
