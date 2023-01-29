@@ -128,7 +128,7 @@ function ecfg.decode(data)
             local kv, value = "", ""
 
             for i,v in ipairs(content) do
-                if i ~= #content then kv = kv..v else value = v end
+                if i ~= #content and not v:match("[\"']") then kv = kv..v else value = v end
             end
 
             local type, complex = ecfg.typeof(value)
