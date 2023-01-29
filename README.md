@@ -33,6 +33,3 @@ character:autorespawn true
 character:autosave false
 character:name ...
 ```
-
-TODO
-- finish string support
