@@ -118,7 +118,7 @@ function ecfg.decode(data)
     local res = {}
         
     for _,line in ipairs(lines) do
-        for awesome in line:gmatch"[^\"' ]*[\"' ]?( *;;.*)" do
+        for awesome in line:gmatch"[\"' ]?(;;.*)$" do
             line = line:gsub(awesome, "")
         end
         line = line:gsub("^[ \t]*", "")
