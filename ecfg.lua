@@ -1,132 +1,127 @@
-local function indexOf(array, value)
-    for i = 1, #array do
-        if value == array[i] then
-            return i
+local base = {}
+local mt = { __call = function(self) local result = {} for i,v in pairs(self) do result[i] = type(v) == "table" and getmetatable(self).__call(v) or v end return setmetatable(result, nil) end }
+
+setmetatable(base, mt)
+
+base.nullptr = setmetatable({}, { __name = "nil", __type = "nil", __newindex = function() end, __index = function() end })
+base.unique_kv_types = { ["boolean"] = true, ["number"] = true }
+base.literal_map = { ["true"] = true, ["false"] = false }
+base.escape_map = { encode = "\\'\"bfnrt", decode = "\\'\"\b\f\n\r\t" }
+base.encode_map = {
+    ["string"] = function(v)
+        local encoded = string.gsub(v, ".", function(character)
+            local index = string.find(escape_map.decode, character)
+            return index ~= nil and "\\" .. string.sub(escape_map.encode, index, index) or character
+        end)
+            
+        return '"' .. encoded .. '"'
+    end,
+    ["number"] = tostring,
+    ["boolean"] = tostring,
+    ["nil"] = function() return "..." end,
+    ["table"] = function(v, self)
+        local encoded = ""
+        
+        for _,v in ipairs(v) do
+            encoded = encoded .. self[type(v)](v, self) .. ", "
         end
+
+        return "[" .. string.sub(encoded, 1, #encoded - 2) .. "]"
     end
-
-    return -1
-end
-
---
-
-local esc_cmi = {"\\", '\'', "\"", "\b", "\f", "\n", "\r", "\t"}
-local esc_cmv = {"\\", "'", "\"", "b", "f", "n", "r", "t"}
-
-local literalsi = {"...", "false", "true"}
-local literalsv = {nil, false, true}
-
-local ecfg = {}
-local type_map; type_map = {
-    encode = {
-        ["boolean"] = tostring,
-        ["number"] = tostring,
-        ["nil"] = function() return "..." end,
-        ["string"] = function(v)
-            local content = v:gsub('[%z\1-\31\\"\']', function(character)
-                return "\\"..esc_cmv[indexOf(esc_cmi, character)]
-            end)
-            
-            return '"'..content..'"'
-        end,
-        ["table"] = function(array)
-            local res = ""
-            for i = 1, #array do
-                local v = array[i]
-                res = res..type_map.encode[ type(v) ](v)
-                if i ~= #array then
-                    res = res..", "
-                end
-            end
-            return "["..res.."]"
-        end
-    },
-    decode = {
-        ["number"] = tonumber,
-        ["literal"] = function(v)
-            return literalsv[ indexOf(literalsi, v) ]
-        end,
-        ["unidentified"] = function(v)
-            return nil
-        end,
-        ["string"] = function(v, quote)
-            local content = v:match(quote.."(.*)"..quote)
-            
-            return content:gsub("\\\\(.)", function(character)
-                return esc_cmi[ indexOf(esc_cmv, character) ]
-            end)
-        end,
-        ["table"] = function(v)
-            local content = v:match("%[([^%]]*)%]")
-            local res = {}
-
-            for value in content:gmatch("([^,]*),? *") do
-                local type, complex = ecfg.typeof(v)
-                res[#res + 1] = type_map.decode[type](v, complex)
-            end
-
-            return res
-        end
-    }
 }
 
-function ecfg.typeof(v)
-    if indexOf(literalsi, v) ~= -1 then
-        return "literal"
+--
+--
+--
+
+local ecfg = base()
+
+function ecfg:decode_value(v)
+    assert(type(v) == "string", "string expected")
+
+    if v == "..." then
+        return self.nullptr
     elseif tonumber(v) then
-        return "number"
-    elseif v:match("%[.*%]") then
-        return "table"
-    else
-        local quote = v:sub(1, 1)
+        return tonumber(v)
+    elseif self.literal_map[v] then
+        return self.literal_map[v]
+    end
+    
+    local first, last = v:sub(1, 1), v:sub(-1)
+    local map = {{"'","'"}, {'"','"'}, {"[","]"}}
+    local type = nil
+
+    for i, wraps in ipairs(map) do
+        if wraps[1] == first and wraps[2] == last then 
+            type = i
+            break
+        end
+    end
+
+    if type == 3 then
+        local content = v:match("%[(.*)%]")
+        local result = {}
         
-        if indexOf({'"', "'"}, quote) == -1 or quote ~= v:sub(-1) then
-            return "unidentified"
+        for item in content:gmatch("([^,]+),? *") do
+            result[#result + 1] = self:decode_value(item)
+        end
+
+        return result
+    elseif ({true, true})[type] then
+        local content = v:sub(2, #v - 1)
+        local character = ({"'", '"'})[type]
+
+        assert(#content ~= 1, "couldn't decode")
+        if content == character or content:match("[^\\]" .. character) then
+            error("couldn't decode. Unescaped character (" .. character .. ") in string: " .. content)
         end
         
-        for i = 2, #v - 1 do
-            local character = v:sub(i, i)
-            if indexOf({"\\", quote}, character) ~= -1 and v:sub(i-1, i-1) ~= "\\" then
-                return "unidentified"
-            end
-        end
+        content = content:gsub("\\(.)", function(character)
+            local index = self.escape_map.encode:find(character)
+            assert(index ~= nil, "invalid escape sequence")
 
-        return "string", quote
+            local esc = self.escape_map.decode:sub(index, index)
+            return esc
+        end)
+        
+        return content
     end
+
+    error("couldn't decode: " .. v)
 end
 
-function ecfg.encode(data)
-    local res = ""
-    for kv,v in pairs(data) do
-        local encoded = type_map.encode[type(v)](v)
-        res = res..("%s %s\n"):format(kv, encoded)
-    end
-    return res:sub(1, #res-1)
-end
-
-function ecfg.decode(data)
+function ecfg:decode(v)
     local function split(input, separator)
         local matches = {}
-        for match in input:gmatch("([^"..separator.."]+)") do
+        for match in string.gmatch(input, "([^"..separator.."]+)") do
             matches[#matches + 1] = match
         end
         
         return matches
     end
 
-    local lines = split(data, "\n")
-    local res = {}
-        
+    local lines = split(v, "\n")
+    local result = {}
+
     for _,line in ipairs(lines) do
-        for awesome in line:gmatch"\"|'?( *;;.*)$" do
-            line = line:gsub(awesome, "")
+        line = line:gsub("^%s*", "")
+
+        local str = false
+            
+        for i = 1, #line do
+            local character = string.sub(line, i,i)
+            if character == "'" or character == '"' then
+                str = not str
+            elseif character == ";" and string.sub(line, i+1,i+1) == ";" and not str then
+                line = string.sub(line, 1, i - 1)
+                break
+            end
         end
-        line = line:gsub("^[ \t]*", "")
-        
+            
         if line ~= "" then
             local content = split(line, " ")
             local kv, value = "", ""
-
+            
             for i,v in ipairs(content) do
                 if i ~= #content and not v:match("[\"']") then
                     kv = kv..v
@@ -135,17 +130,40 @@ function ecfg.decode(data)
                     for i = i, #content do
                         value = value .. content[i] .. " "
                     end
-                    value = value:sub(1, #value - 1)
+                    
+                    value = string.sub(value, 1, #value - 1)
                     break
                 end
             end
 
-            local type, complex = ecfg.typeof(value)
-            res[kv] = type_map.decode[type](value, complex)
+            if string.sub(kv, 1, 1) == "[" and string.sub(kv, #kv, #kv) == "]" then
+                local content = string.sub(kv, 2, #kv - 1)
+                kv = self:decode_value(content)
+            end
+            
+            result[kv] = self:decode_value(value)
         end
     end
 
-    return res
+    return result
 end
 
-return ecfg, type_map
+function ecfg:encode(v)
+    local map = self.encode_map
+    local typev = type(v)
+    
+    if typev == "table" then
+        local res = ""
+
+        for i,v in pairs(v) do
+            local kv = tostring(i)
+            res = res .. string.format((self.unique_kv_types[type(i)] and "[%s]" or "%s") .. " %s\n", kv, map[type(v)](v, map))
+        end
+
+        return res:sub(1, #res - 1)
+    end
+
+    return map[typev](v, map)
+end
+
+return ecfg, base
