@@ -71,7 +71,6 @@ function ecfg:decode_value(v)
         local content = v:sub(2, #v - 1)
         local character = ({"'", '"'})[type]
 
-        assert(#content ~= 1, "couldn't decode")
         if content == character or content:match("[^\\]" .. character) then
             error("couldn't decode. Unescaped character (" .. character .. ") in string: " .. content)
         end
