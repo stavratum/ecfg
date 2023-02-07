@@ -4,7 +4,7 @@ local mt = { __call = function(self) local result = {} for i,v in pairs(self) do
 setmetatable(base, mt)
 
 base.nullptr = setmetatable({}, { __name = "nil", __type = "nil", __newindex = function() end, __index = function() end })
-base.unique_kv_types = { ["boolean"] = true, ["number"] = true }
+base.unique_kv_types = { ["boolean"] = true, ["number"] = true, ["table"] = true }
 base.literal_map = { ["true"] = true, ["false"] = false }
 base.escape_map = { encode = "\\'\"bfnrt", decode = "\\'\"\b\f\n\r\t" }
 base.encode_map = {
