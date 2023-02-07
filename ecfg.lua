@@ -1,11 +1,9 @@
-local base = {}
+local base = { nullptr = {} }
 local mt = { __call = function(self) local result = {} for i,v in pairs(self) do result[i] = type(v) == "table" and getmetatable(self).__call(v) or v end return setmetatable(result, nil) end }
 
 setmetatable(base, mt)
 
-base.nullptr = setmetatable({}, { __name = "nil", __type = "nil", __newindex = function() end, __index = function() end })
 base.unique_kv_types = { ["boolean"] = true, ["number"] = true, ["table"] = true }
-base.literal_map = { ["true"] = true, ["false"] = false }
 base.escape_map = { encode = "\\'\"bfnrt", decode = "\\'\"\b\f\n\r\t" }
 base.encode_map = {
     ["string"] = function(v, self)
@@ -36,15 +34,15 @@ base.encode_map = {
 
 local ecfg = base()
 
-local decode_value; decode_value = function(v)
+local decode_value; decode_value = function(v, opt)
     assert(type(v) == "string", "string expected")
+    
+    local map = { ["true"] = true, ["false"] = false, ["..."] = opt.nullptr }
 
-    if v == "..." then
-        return self.nullptr
+    if map[v] ~= nil then
+        return map[v]
     elseif tonumber(v) then
         return tonumber(v)
-    elseif self.literal_map[v] ~= nil then
-        return self.literal_map[v]
     end
     
     local first, last = v:sub(1, 1), v:sub(-1)
@@ -76,10 +74,10 @@ local decode_value; decode_value = function(v)
         end
         
         content = content:gsub("\\(.)", function(character)
-            local index = self.escape_map.encode:find(character)
+            local index = string.find(opt.escape_map.encode, character)
             assert(index ~= nil, "invalid escape sequence")
 
-            local esc = self.escape_map.decode:sub(index, index)
+            local esc = string.sub(opt.escape_map.decode, index, index)
             return esc
         end)
         
@@ -137,10 +135,10 @@ function ecfg:decode(v)
 
             if string.sub(kv, 1, 1) == "[" and string.sub(kv, #kv, #kv) == "]" then
                 local content = string.sub(kv, 2, #kv - 1)
-                kv = decode_value(content)
+                kv = decode_value(content, self)
             end
             
-            result[kv] = decode_value(value)
+            result[kv] = decode_value(value, self)
         end
     end
 
