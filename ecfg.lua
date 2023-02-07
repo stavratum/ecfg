@@ -22,8 +22,8 @@ base.encode_map = {
     ["table"] = function(v, self)
         local encoded = ""
         
-        for _,v in ipairs(v) do
-            encoded = encoded .. self[type(v)](v, self) .. ", "
+        for i = 1, #v do
+            encoded = encoded .. self[type(v[i])](v[i], self) .. ", "
         end
 
         return "[" .. string.sub(encoded, 1, #encoded - 2) .. "]"
