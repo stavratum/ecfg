@@ -8,10 +8,10 @@ base.unique_kv_types = { ["boolean"] = true, ["number"] = true, ["table"] = true
 base.literal_map = { ["true"] = true, ["false"] = false }
 base.escape_map = { encode = "\\'\"bfnrt", decode = "\\'\"\b\f\n\r\t" }
 base.encode_map = {
-    ["string"] = function(v)
+    ["string"] = function(v, self)
         local encoded = string.gsub(v, ".", function(character)
-            local index = string.find(escape_map.decode, character)
-            return index ~= nil and "\\" .. string.sub(escape_map.encode, index, index) or character
+            local index = string.find(self.escape_map.decode, character)
+            return index ~= nil and "\\" .. string.sub(self.escape_map.encode, index, index) or character
         end)
             
         return '"' .. encoded .. '"'
@@ -21,9 +21,9 @@ base.encode_map = {
     ["nil"] = function() return "..." end,
     ["table"] = function(v, self)
         local encoded = ""
-        
+            
         for i = 1, #v do
-            encoded = encoded .. self[type(v[i])](v[i], self) .. ", "
+            encoded = encoded .. self.encode_map[type(v[i])](v[i], self) .. ", "
         end
 
         return "[" .. string.sub(encoded, 1, #encoded - 2) .. "]"
@@ -36,7 +36,7 @@ base.encode_map = {
 
 local ecfg = base()
 
-function ecfg:decode_value(v)
+local decode_value; decode_value = function(v)
     assert(type(v) == "string", "string expected")
 
     if v == "..." then
@@ -63,7 +63,7 @@ function ecfg:decode_value(v)
         local result = {}
         
         for item in content:gmatch("([^,]+),? *") do
-            result[#result + 1] = self:decode_value(item)
+            result[#result + 1] = decode_value(item)
         end
 
         return result
@@ -137,10 +137,10 @@ function ecfg:decode(v)
 
             if string.sub(kv, 1, 1) == "[" and string.sub(kv, #kv, #kv) == "]" then
                 local content = string.sub(kv, 2, #kv - 1)
-                kv = self:decode_value(content)
+                kv = decode_value(content)
             end
             
-            result[kv] = self:decode_value(value)
+            result[kv] = decode_value(value)
         end
     end
 
@@ -156,7 +156,7 @@ function ecfg:encode(v)
 
         for i,v in pairs(v) do
             local kv = tostring(i)
-            res = res .. string.format((self.unique_kv_types[type(i)] and "[%s]" or "%s") .. " %s\n", kv, map[type(v)](v, map))
+            res = res .. string.format((self.unique_kv_types[type(i)] and "[%s]" or "%s") .. " %s\n", kv, map[type(v)](v, self))
         end
 
         return res:sub(1, #res - 1)
