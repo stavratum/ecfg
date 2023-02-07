@@ -43,7 +43,7 @@ function ecfg:decode_value(v)
         return self.nullptr
     elseif tonumber(v) then
         return tonumber(v)
-    elseif self.literal_map[v] then
+    elseif self.literal_map[v] ~= nil then
         return self.literal_map[v]
     end
     
